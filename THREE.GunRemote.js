@@ -36,7 +36,7 @@ THREE.GunRemote = function(object) {
 
 
   this.kalman = KalmanFactory();
-	this.accelerationKalman = {
+  this.accelerationKalman = {
     x: 0,
     y: 0,
     z: 0
@@ -63,24 +63,24 @@ THREE.GunRemote = function(object) {
     //scope.acceleration.y += event.acceleration.y;
     //scope.acceleration.z += event.acceleration.z;
 
-		// feed the Kalman
-		var kalman = scope.kalman(event.acceleration);
-		scope.accelerationKalman.x += kalman.x;
-		scope.accelerationKalman.y += kalman.y;
-		scope.accelerationKalman.z += kalman.z;
+    // feed the Kalman
+    var kalman = scope.kalman(event.acceleration);
+    scope.accelerationKalman.x += kalman.x;
+    scope.accelerationKalman.y += kalman.y;
+    scope.accelerationKalman.z += kalman.z;
 
-		// TODO we should instead integrate the accelerations,
-		// transform them into X, Y, Z deltas
-		//
-		scope.acceleration.x += event.acceleration.x;
+    // TODO we should instead integrate the accelerations,
+    // transform them into X, Y, Z deltas
+    //
+    scope.acceleration.x += event.acceleration.x;
     scope.acceleration.y += event.acceleration.y;
     scope.acceleration.z += event.acceleration.z;
 
     // TODO we should take the time into account
-		//http://physics.stackexchange.com/questions/36312/calculation-of-distance-from-measured-acceleration-vs-time
-		//var vel_x = previous_vel_x + (1)*(previous_acc_x+acc_x)/2
+    //http://physics.stackexchange.com/questions/36312/calculation-of-distance-from-measured-acceleration-vs-time
+    //var vel_x = previous_vel_x + (1)*(previous_acc_x+acc_x)/2
 
-		// =D2+(previous_acc_x - acc_x)*(previous_vel_x+vel_x)/2
+    // =D2+(previous_acc_x - acc_x)*(previous_vel_x+vel_x)/2
 
     scope.accelerationIncludingGravity = event.accelerationIncludingGravity;
     scope.rotationRate = event.rotationRate;
@@ -128,15 +128,15 @@ THREE.GunRemote = function(object) {
         z: scope.accelerationIncludingGravity.z
       },
       kalman: scope.kalman(), // snapshot from kalman
-			accelerationKalman: scope.accelerationKalman
+      accelerationKalman: scope.accelerationKalman
     };
     // empty buffer
     scope.acceleration.x = 0;
     scope.acceleration.y = 0;
     scope.acceleration.z = 0;
-		scope.accelerationKalman.x = 0;
-		scope.accelerationKalman.y = 0;
-		scope.accelerationKalman.z = 0;
+    scope.accelerationKalman.x = 0;
+    scope.accelerationKalman.y = 0;
+    scope.accelerationKalman.z = 0;
     return res;
 
   };
