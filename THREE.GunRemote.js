@@ -10,6 +10,14 @@ THREE.GunRemote = function(object) {
 
   var scope = this;
 
+  this.onchange = function() {
+
+  };
+
+  this.ts = +(new Date());
+  this.t = 0;
+  //this.t = 0;
+
   this.enabled = true;
 
   this.rotation = {
@@ -18,6 +26,7 @@ THREE.GunRemote = function(object) {
     gamma: 0
   };
   this.orientation = 0;
+
   this.acceleration = {
     x: 0,
     y: 0,
@@ -34,56 +43,101 @@ THREE.GunRemote = function(object) {
     gamma: 0
   };
 
-
   this.kalman = KalmanFactory();
   this.accelerationKalman = {
     x: 0,
     y: 0,
     z: 0
   };
+  var filter1 = function(x, y) {
+    return Math.round(y * x) / y;
+  }
+  var filter2 = function(x, y) {
+    //return x;
+    return (Math.abs(x) < y) ? 0 : (x > 0) ? x - y : x + y;
+  }
+  var colorify = function(x, y) {
+    return (x > 0) ? "<span class='green'>" + x + "</span>" : "<span class='red'>" + x + "</span>";
+  }
+
+
+
+  var isMobile = {
+    Android: (function() {
+      return /Android/i.test(navigator.userAgent);
+    })(),
+    BlackBerry: (function() {
+      return /BlackBerry/i.test(navigator.userAgent);
+    })(),
+    iOS: (function() {
+      return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    })(),
+    Windows: (function() {
+      return /IEMobile/i.test(navigator.userAgent);
+    })()
+  };
 
   //this.onupdate = function() {};
 
   var onDeviceOrientationChangeEvent = function(event) {
-
     scope.rotation.alpha = event.alpha;
     scope.rotation.beta = event.beta;
     scope.rotation.gamma = event.gamma;
-    //scope.onupdate(scope.read());
   };
+
+
 
   var onScreenOrientationChangeEvent = function() {
-
     scope.orientation = window.orientation || 0;
-    //scope.onupdate(scope.read());
   };
 
+
   var onDeviceMotionChangeEvent = function(event) {
-    //scope.acceleration.x += event.acceleration.x;
-    //scope.acceleration.y += event.acceleration.y;
-    //scope.acceleration.z += event.acceleration.z;
+    scope.acceleration.x = event.acceleration.x;
+    scope.acceleration.y = event.acceleration.y;
+    scope.acceleration.z = event.acceleration.z;
 
-    // feed the Kalman
-    var kalman = scope.kalman(event.acceleration);
-    scope.accelerationKalman.x += kalman.x;
-    scope.accelerationKalman.y += kalman.y;
-    scope.accelerationKalman.z += kalman.z;
-
-    // TODO we should instead integrate the accelerations,
-    // transform them into X, Y, Z deltas
-    //
-    scope.acceleration.x += event.acceleration.x;
-    scope.acceleration.y += event.acceleration.y;
-    scope.acceleration.z += event.acceleration.z;
-
-    // TODO we should take the time into account
-    //http://physics.stackexchange.com/questions/36312/calculation-of-distance-from-measured-acceleration-vs-time
-    //var vel_x = previous_vel_x + (1)*(previous_acc_x+acc_x)/2
-
-    // =D2+(previous_acc_x - acc_x)*(previous_vel_x+vel_x)/2
+    var ts = +(new Date());
+    var t = filter1((ts - scope.ts) * 0.001, 1000); // time in seconds, elapsed since latest update of acceleration
+    scope.ts = ts;
+    scope.t = t;
 
     scope.accelerationIncludingGravity = event.accelerationIncludingGravity;
     scope.rotationRate = event.rotationRate;
+
+    $("#debug").html(
+      "alpha: " + colorify(scope.rotation.alpha) + "<br/>" +
+      "beta: " + colorify(scope.rotation.beta) + "<br/>" +
+      "gamma: " + colorify(scope.rotation.gamma)
+    )
+
+    var alpha =  scope.rotation.alpha;
+    var beta =  scope.rotation.beta;
+    var gamma =  scope.rotation.gamma;
+
+    if (isMobile.Android) {
+      gamma *= 2;
+      beta *= 2;
+      alpha = scope.rotation.alpha;
+      gamma = scope.rotation.beta; // rouge
+      beta = - scope.rotation.gamma; // ?
+      // TODO: apply a rotation to make it even with the iPhone
+
+    }
+    scope.onchange({
+      t: scope.t,
+      rotation: {
+        alpha: alpha,
+        beta: beta,
+        gamma: gamma
+      },
+      orientation: scope.orientation,
+      acceleration: {
+        x: scope.acceleration.x,
+        y: scope.acceleration.y,
+        z: scope.acceleration.z
+      }
+    });
   }
 
   this.connect = function() {
@@ -127,16 +181,10 @@ THREE.GunRemote = function(object) {
         y: scope.accelerationIncludingGravity.y,
         z: scope.accelerationIncludingGravity.z
       },
-      kalman: scope.kalman(), // snapshot from kalman
-      accelerationKalman: scope.accelerationKalman
+      //kalman: scope.kalman(), // snapshot from kalman
+      //accelerationKalman: scope.accelerationKalman,
     };
-    // empty buffer
-    scope.acceleration.x = 0;
-    scope.acceleration.y = 0;
-    scope.acceleration.z = 0;
-    scope.accelerationKalman.x = 0;
-    scope.accelerationKalman.y = 0;
-    scope.accelerationKalman.z = 0;
+
     return res;
 
   };

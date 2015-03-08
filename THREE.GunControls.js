@@ -16,29 +16,17 @@ THREE.GunControls = function(object) {
 
   this.enabled = true;
 
-  this.rotation = {
-    alpha: 0,
-    beta: 0,
-    gamma: 0
-  };
-  this.orientation = 0;
-  this.acceleration = {
-    x: 0,
-    y: 0,
-    z: 0
-  };
-  this.accelerationIncludingGravity = {
-    x: 0,
-    y: 0,
-    z: 0
-  };
-  this.kalman = {
-    x: 0,
-    y: 0,
-    z: 0
-  };
+  this.velocity = { x: 0, y: 0, z: 0 };
+  //this.position = { x: 0, y: 0, z: 0 };
 
-
+  this.events = [];
+  var filter1 = function(x,y) {
+    return Math.round(y * x) / y;
+  }
+  var filter2 = function(x,y) {
+    //return x;
+    return (Math.abs(x) < y) ? 0 : (x > 0) ? x - y : x + y;
+  }
   // The angles alpha, beta and gamma form a set of intrinsic Tait-Bryan angles of type Z-X'-Y''
 
   var setObjectQuaternion = function() {
@@ -81,33 +69,44 @@ THREE.GunControls = function(object) {
 
     if (scope.enabled === false) return;
 
-    var alpha = THREE.Math.degToRad(scope.rotation.alpha); // Z
-    var beta = THREE.Math.degToRad(scope.rotation.beta); // X'
-    var gamma = THREE.Math.degToRad(scope.rotation.gamma); // Y''
-    var orient = THREE.Math.degToRad(scope.orientation); // O
-
-    //scope.object.position.z +=  (Math.round(10 * scope.acceleration.x) / 10);
-    //scope.object.position.x += sth.round(10 * scope.acceleration.y) / 10);
-    //scope.object.position.y -= (10 * scope.acceleration.z);
-
-    //scope.object.position.z +=  (Math.round(10 * scope.acceleration.x) / 10);
-    //scope.object.position.x += sth.round(10 * scope.acceleration.y) / 10);
-    //scope.object.position.y -= (10 * scope.acceleration.z);
-
-    setObjectQuaternion(scope.object.quaternion, alpha, beta, gamma, orient);
+    var alpha = 0, beta = 0, gamma = 0,
+       orient = 0,
+       ax = 0, ay = 0, az = 0,
+       vx = 0, vy = 0, vz = 0,
+       dx = 0, xy = 0, xz = 0;
 
 
-    //scope.acceleration.x = 0;
-    //scope.acceleration.y = 0;
-    //scope.acceleration.z = 0;
+    for (var i = 0; i < scope.events.length; i++) {
+      var event = scope.events[i];
+       alpha  = THREE.Math.degToRad(event.rotation.alpha); // Z
+       beta   = THREE.Math.degToRad(event.rotation.beta); // X'
+       gamma  = THREE.Math.degToRad(event.rotation.gamma); // Y''
+       orient = THREE.Math.degToRad(event.orientation); // O
 
+       setObjectQuaternion(scope.object.quaternion, alpha, beta, gamma, orient);
+
+       scope.velocity.x = scope.velocity.x + filter2(event.acceleration.x * event.t, 0.006);
+       scope.velocity.y = scope.velocity.y + filter2(event.acceleration.y * event.t, 0.006),
+       scope.velocity.z = scope.velocity.z + filter2(event.acceleration.z * event.t, 0.006)
+
+       scope.object.translateY(100 * filter2(scope.velocity.y * event.t, 0.006));
+       scope.object.translateX(100 * filter2(scope.velocity.x * event.t, 0.006)),
+       scope.object.translateZ(100 * filter2(scope.velocity.z * event.t, 0.006));
+
+       scope.object.updateMatrix();
+    }
+    scope.events = [];
+
+    // drag
+    scope.velocity.x *= 0.5;
+    scope.velocity.y *= 0.5;
+    scope.velocity.z *= 0.5;
   };
 
-  this.write = function(data) {
-    scope.orientation = data.orientation;
-    scope.rotation = data.rotation;
-    scope.acceleration = data.acceleration;
-    scope.kalman = data.kalman;
+  this.write = function(events) {
+    for (var i = 0; i < events.length; i++) {
+      scope.events.push(events[i]);
+    }
   }
 
   this.connect();

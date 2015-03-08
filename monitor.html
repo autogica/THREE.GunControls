@@ -16,12 +16,12 @@
 <body>
 
   <script src="three.min.js"></script>
-  <script src="THREE.GunControl.js"></script>
+  <script src="THREE.GunControls.js"></script>
   <script src="THREE.OrbitControls.js"></script>
 
   <script>
     var config = {
-    	pivotLength: 300
+    	pivotLength: 0 // 100
     };
     var camera, scene, renderer;
     var controls;
@@ -86,7 +86,7 @@
     		gunAssembly.rotation.y = -Math.PI;
     		gunAssembly.rotation.z = -Math.PI / 2;
     		gunAssembly.position.z = -5;
-    		gunAssembly.position.y = 100;
+    		gunAssembly.position.y = config.pivotLength;
     		gunAssembly.scale.x = 5; // SCALE
     		gunAssembly.scale.y = 5; // SCALE
     		gunAssembly.scale.z = 5; // SCALE

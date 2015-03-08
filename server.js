@@ -27,6 +27,7 @@ wss.on('connection', function connection(ws) {
     if (msg.type === "sensor") {
       wss.clients.forEach(function each(client) {
         if (client.type === "display"){
+          
           client.send(JSON.stringify({
             type: 'sensor',
             sensor: msg.sensor

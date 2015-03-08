@@ -18,6 +18,18 @@
       overflow: hidden;
       user-select: none;
     }
+    #debug{
+      /*position: fixed;*/
+      top: 200px;
+      font-size: 20px;
+      color: #fff;
+    }
+    .red{
+      color: #ff0000;
+    }
+    .green{
+      color: #00ff00;
+    }
     .controls {
       user-select: none;
     }
@@ -95,17 +107,21 @@
 
 <body>
 
+
   <div class="controls">
     <a id="A" class="btn" href="#">
       <span>A</span>
     </a>
   </div>
 
+  <div id="debug">
+  </div>
+
   <script src="jquery.min.js"></script>
   <script src="three.min.js"></script>
   <script src="sylvester.min.js"></script>
   <script src="kalman.js"></script>
-  <script src="THREE.GunRemote.js"></script>
+  <script src="THREE.GunRemote.js?v=12"></script>
   <script>
     var app = {
       config: {
@@ -118,7 +134,8 @@
       buttons: {
         A: false,
         B: false
-      }
+      },
+      buffer: []
     };
 
 
@@ -147,13 +164,17 @@
       }
     }
 
+
     function sendNow() {
       if (!app.connected) return;
+      /*
+      for the moment we do not send the event immediately, we wait for next cycle
       app.ws.send(JSON.stringify({
         type: "sensor",
         sensor: app.remote.read(),
         buttons: app.buttons
       }));
+      */
     }
 
 
@@ -172,20 +193,27 @@
           console.log("server said hello");
         }
 
+
+        app.remote.onchange = function(data){
+          app.buffer.push(data);
+        }
+
         setInterval(function() {
           if (!app.connected) return;
+
           var payload = {
             type: "sensor",
-            sensor: app.remote.read(),
+            sensor: app.buffer,
             buttons: app.buttons
           };
           var json = JSON.stringify(payload);
-          if (json !== app.cache) {
-            //console.log("sending sensor data because cache changed");
+          //if (json !== app.cache) {
+          //  console.log("sending sensor data because cache changed");
             app.ws.send(json);
-            app.cache = json;
-          }
-        }, 30);
+          //  app.cache = json;
+          //}
+          app.buffer = [];
+        }, 50);
         // 30ms is the maximum delay for things to looks not laggy
         // Wifi latency is between 0ms and 15ms
         // 4G latency is around +20ms
