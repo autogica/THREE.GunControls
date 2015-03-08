@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Gun Remote Control</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    body,html{
+	    width:100%;
+	    height:100%;
+	    padding:0px;
+	    margin: 0px;
+	    background-color: rgb(63, 64, 65);
+	    overflow: hidden;
+	    user-select: none;
+    }
+		.controls{
+			user-select: none;
+		}
+    .btn {
+			/*
+      -webkit-transform: rotate(-90deg);
+      -moz-transform: rotate(-90deg);
+      -o-transform: rotate(-90deg);
+      -ms-transform: rotate(-90deg);
+      transform: rotate(-90deg);
+			*/
+
+			user-select: none;
+			position: fixed;
+			width: 200px;
+			height: 200px;
+			border-radius: 200px;
+			background-color:  rgba(255, 255, 255, 0.01);
+			border: solid 1px rgba(255, 255, 255, 0.2);
+			font-family: 'Helvetica Neue', Helvetica, arial;
+			font-size: 100px;
+			font-weight: 100;
+			color: rgba(255, 255, 255, 0.5);
+			text-decoration: none;
+			text-tranform: uppercase;
+			text-align: center;
+			line-height: 200px;
+    }
+    #A {
+      top: 10px;
+      right: 10px;
+    }
+    .pushed {
+      -webkit-animation: push 0.7s 0;
+      -moz-animation: push 0.7s 0;
+      animation: push 0.7s 0;
+      /*position: relative;*/
+
+      -moz-transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
+      transform-style: preserve-3d;
+    }
+    @-webkit-keyframes push {
+      0% {
+        -moz-transform: scale(1.0);
+        -ms-transform: scale(1.0);
+        -webkit-transform: scale(1.0);
+        transform: scale(1.0);
+				background-color: rgba(255, 255, 255, 0);
+      }
+      50% {
+        -moz-transform: scale(0.7);
+        -ms-transform: scale(0.7);
+        -webkit-transform: scale(0.7);
+        transform: scale(0.7);
+				background-color: rgba(255, 255, 255, 0.25);
+      }
+      90% {
+        -moz-transform: scale(1.05);
+        -ms-transform: scale(1.05);
+        -webkit-transform: scale(1.05);
+        transform: scale(1.05);
+				background-color: rgba(255, 255, 255, 0);
+      }
+      100% {
+        -moz-transform: scale(1.0);
+        -ms-transform: scale(1.0);
+        -webkit-transform: scale(1.0);
+        transform: scale(1.0);
+				background-color: rgba(255, 255, 255, 0);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="controls">
+    <a id="A" class="btn" href="#">
+      <span>A</span>
+    </a>
+  </div>
+
+  <script src="jquery.min.js"></script>
+  <script src="three.min.js"></script>
+  <script src="sylvester.min.js"></script>
+  <script src="kalman.js"></script>
+  <script src="THREE.GunRemote.js"></script>
+  <script>
+
+	var app = {
+		config: {
+			useVibrations: false,
+	  	useFullScreen: false
+	  },
+		askedFullScreen: false,
+		connected: false,
+		cache: undefined,
+		buttons: {
+			A: false,
+			B: false
+		}
+	};
+
+
+	function toggleFullScreen() {
+  if (!document.fullscreenElement &&    // alternative standard method
+      !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement ) {  // current working methods
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    } else if (document.documentElement.msRequestFullscreen) {
+      document.documentElement.msRequestFullscreen();
+    } else if (document.documentElement.mozRequestFullScreen) {
+      document.documentElement.mozRequestFullScreen();
+    } else if (document.documentElement.webkitRequestFullscreen) {
+      document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen();
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+}
+
+	  function sendNow() {
+			if (!app.connected) return;
+			app.ws.send(JSON.stringify({
+				type: "sensor",
+			  sensor: app.remote.read(),
+				buttons: app.buttons
+			}));
+		}
+
+
+    function init() {
+
+    	app.ws = new WebSocket("ws://192.168.0.31:8088");
+    	app.remote = new THREE.GunRemote();
+    	app.remote.connect();
+
+    	app.ws.onmessage = function(event) {
+    		//var msg = JSON.parse(data);
+    		var msg = JSON.parse(event.data);
+    		console.log("msg: ", msg);
+    		if (msg.type === "hello") {
+    			app.connected = true;
+    			console.log("server said hello");
+    		}
+
+    		setInterval(function() {
+    			if (!app.connected) return;
+    			var payload = {
+    				type: "sensor",
+    				sensor: app.remote.read(),
+						buttons: app.buttons
+    			};
+    			var json = JSON.stringify(payload);
+    			if (json !== app.cache) {
+    				//console.log("sending sensor data because cache changed");
+    				app.ws.send(json);
+    				app.cache = json;
+    			}
+    		}, 30);
+    		// 30ms is the maximum delay for things to looks not laggy
+    		// Wifi latency is between 0ms and 15ms
+    		// 4G latency is around +20ms
+
+    	};
+
+    }
+
+
+    $(function() {
+
+    	var flag = false;
+    	var $A = $("#A");
+    	$A.bind('touchstart', function() {
+				if (app.config.useFullScreen && !app.askedFullScreen) {
+					toggleFullScreen();
+					app.askedFullScreen = true;
+				}
+    		if (!flag) {
+					app.buttons.A = true;
+					sendNow();
+					app.buttons.A = false;
+    			if (app.config.useVibrations) navigator.vibrate([50]);
+    			flag = true;
+    			$A.addClass('pushed');
+    			setTimeout(function() {
+    				flag = false;
+    				$A.removeClass('pushed');
+    			}, 100);
+    		}
+
+    		return false;
+    	});
+
+
+			//window.scrollTo(0,1);
+    	init();
+    })
+  </script>
+
+
+
+</body>
+
+</html>
