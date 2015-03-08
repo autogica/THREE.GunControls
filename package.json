@@ -1,13 +1,13 @@
 {
-  "name": "demo2",
+  "name": "GunControls",
   "version": "1.0.0",
   "description": "",
-  "main": "THREEx.DeviceOrientationState.js",
+  "main": "THREE.GunControls.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Julian Bilcke <julian.bilcke@gmail.com>",
+  "license": "GPL3",
   "dependencies": {
     "ws": "^0.7.1"
   }

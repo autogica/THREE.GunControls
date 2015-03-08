@@ -7,7 +7,7 @@
  */
 
 
-THREE.GunControl = function (object) {
+THREE.GunControls = function (object) {
 
 	var scope = this;
 
