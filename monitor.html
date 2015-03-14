@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-  <title>three.js webgl - geometry - cube</title>
+  <title>THREE.GunControls</title>
   <meta charset="utf-8">
   <style>
     body {
@@ -16,173 +16,461 @@
 <body>
 
   <script src="three.min.js"></script>
-  <script src="THREE.GunControls.js"></script>
+  <script src="THREE.GunControls.js?v=13"></script>
   <script src="THREE.OrbitControls.js"></script>
+  <script id="physics" type="javascript/worker">
+        var world;
+        self.onmessage = function(e) {
+
+            if (e.data.cannonUrl && !world) {
+                // Load cannon.js
+                importScripts(e.data.cannonUrl);
+
+                // Init physics
+                world = new CANNON.World();
+                world.broadphase = new CANNON.NaiveBroadphase();
+                world.gravity.set(0,-10,0);
+                world.solver.tolerance = 0.001;
+
+                // Ground plane
+                var plane = new CANNON.Plane();
+                var groundBody = new CANNON.Body({ mass: 0 });
+                groundBody.addShape(plane);
+                groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),-Math.PI/2);
+                world.add(groundBody);
+
+                // Create N cubes
+                var shape = new CANNON.Box(new CANNON.Vec3(0.5,0.5,0.5));
+                for(var i=0; i!==e.data.N; i++){
+                    var body = new CANNON.Body({ mass: 30 });
+                    body.addShape(shape);
+                    body.position.set(Math.random()-0.5,2.5*i+0.5,Math.random()-0.5);
+                    world.add(body);
+                }
+            }
+
+            // Step the world
+            world.step(e.data.dt);
+
+            // Copy over the data to the buffers
+            var positions = e.data.positions;
+            var quaternions = e.data.quaternions;
+            for(var i=0; i!==world.bodies.length; i++){
+                var b = world.bodies[i],
+                    p = b.position,
+                    q = b.quaternion;
+                positions[3*i + 0] = p.x;
+                positions[3*i + 1] = p.y;
+                positions[3*i + 2] = p.z;
+                quaternions[4*i + 0] = q.x;
+                quaternions[4*i + 1] = q.y;
+                quaternions[4*i + 2] = q.z;
+                quaternions[4*i + 3] = q.w;
+            }
+
+            // Send data back to the main thread
+            self.postMessage({
+                positions:positions,
+                quaternions:quaternions
+            }, [positions.buffer,
+                quaternions.buffer]);
+        };
+    </script>
 
   <script>
-    var config = {
-    	pivotLength: 0 // 100
-    };
-    var camera, scene, renderer;
-    var controls;
-    var ws;
-    var gunControl;
-    var gunReady = false;
 
-    function init() {
+var makeBullet_realistic = function(app) {
 
+  var material = new THREE.MeshLambertMaterial({
+    //map: THREE.ImageUtils.loadTexture('path_to_texture'),  // specify and load the texture
+    colorAmbient: [0.3, 0.3, 0.3],
+    colorDiffuse: [0.3, 0.3, 0.3],
+    colorSpecular: [0.3, 0.3, 0.3],
+    shading: THREE.FlatShading
+  });
+  // create a mesh with models geometry and material
+  var bullet = new THREE.Mesh(
+    app.bulletGeometry,
+    material
+  );
+  bullet.rotation.x = +Math.PI / 2;
+  bullet.rotation.y = -Math.PI;
+  bullet.rotation.z = -Math.PI / 2;
+  bullet.position.z = -5;
 
+  bullet.scale.x = 5; // SCALE
+  bullet.scale.y = 5; // SCALE
+  bullet.scale.z = 5; // SCALE
 
-    	camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 50000);
+  return bullet;
+};
+// view-source:http://schteppe.github.io/cannon.js/examples/threejs_fps.html
+/*
+var makeBullet = function(app) {
+  app.bullet = {};
+  app.bullet.ballShape = new CANNON.Sphere(0.2);
+  app.bullet.app.ballGeometry = new THREE.SphereGeometry(app.bullet.ballShape.radius, 32, 32);
+  app.bullet.app.shootDirection = new THREE.Vector3();
+  app.bullet.app.shootVelo = 15;
 
-    	camera.position.set(300, 300, 400);
-    	camera.up = new THREE.Vector3(0, 1, 0);
-    	camera.lookAt(new THREE.Vector3(0, 0, 0));
-
-    	scene = new THREE.Scene();
-    	scene.fog = new THREE.FogExp2(0xcccccc, 0.001);
-
-    	controls = new THREE.OrbitControls(camera);
-    	controls.damping = 0.2;
-    	//controls.addEventListener( 'change', render );
-
-
-    	light = new THREE.DirectionalLight(0xffffff);
-    	light.position.set(1, 1, 1);
-    	scene.add(light);
-    	light = new THREE.DirectionalLight(0x002288);
-    	light.position.set(-1, -1, -1);
-    	scene.add(light);
-    	light = new THREE.AmbientLight(0x222222);
-    	scene.add(light);
-
-    	var geometry = new THREE.PlaneGeometry(160, 90, 32);
-    	var material = new THREE.MeshBasicMaterial({
-    		color: 0xe3e9f1,
-    		side: THREE.DoubleSide
-    	});
-    	var plane = new THREE.Mesh(geometry, material);
-    	scene.add(plane);
-
-    	var loader = new THREE.JSONLoader(); // init the loader util
-
-    	// init loading
-    	loader.load('models/gun.json', function(geometry) {
-    		// create a new material
-    		var material = new THREE.MeshLambertMaterial({
-    			//map: THREE.ImageUtils.loadTexture('path_to_texture'),  // specify and load the texture
-    			colorAmbient: [0.480000026226044, 0.480000026226044, 0.480000026226044],
-    			colorDiffuse: [0.480000026226044, 0.480000026226044, 0.480000026226044],
-    			colorSpecular: [0.8999999761581421, 0.8999999761581421, 0.8999999761581421],
-    			shading: THREE.FlatShading
-    		});
-
-    		// create a mesh with models geometry and material
-    		var gunAssembly = new THREE.Mesh(
-    			geometry,
-    			material
-    		);
-    		gunAssembly.rotation.x = +Math.PI / 2;
-    		gunAssembly.rotation.y = -Math.PI;
-    		gunAssembly.rotation.z = -Math.PI / 2;
-    		gunAssembly.position.z = -5;
-    		gunAssembly.position.y = config.pivotLength;
-    		gunAssembly.scale.x = 5; // SCALE
-    		gunAssembly.scale.y = 5; // SCALE
-    		gunAssembly.scale.z = 5; // SCALE
-
-    		var handPivot = new THREE.Object3D();
-    		handPivot.position.z = 250;
-    		handPivot.position.y = -30;
-    		handPivot.add(gunAssembly);
-
-    		var dir = new THREE.Vector3(0, 1, 0);
-    		var origin = new THREE.Vector3(0, 0, 0);
-    		var length = 600;
-    		var hex = 0xff0000;
-
-    		var arrowHelper = new THREE.ArrowHelper(dir, origin, length, hex);
-    		handPivot.add(arrowHelper);
-
-    		dir = new THREE.Vector3(1, 0, 0);
-    		origin = new THREE.Vector3(0, 0, 0);
-    		length = 30;
-    		hex = 0x00ff00;
-
-    		arrowHelper = new THREE.ArrowHelper(dir, origin, length, hex);
-    		handPivot.add(arrowHelper);
-
-    		dir = new THREE.Vector3(0, 0, 1);
-    		origin = new THREE.Vector3(0, 0, 0);
-    		length = 20;
-    		hex = 0x0000ff;
-
-    		arrowHelper = new THREE.ArrowHelper(dir, origin, length, hex);
-    		handPivot.add(arrowHelper);
-
-    		scene.add(handPivot);
+  function getShootDir(targetVec){
+    var vector = targetVec;
+    targetVec.set(0,0,1);
+    app.projector.unprojectVector(vector, app.camera);
+    var ray = new THREE.Ray(app.camera.position, vector.sub(app.camera.position).normalize() );
+    targetVec.x = ray.direction.x;
+    targetVec.y = ray.direction.y;
+    targetVec.z = ray.direction.z;
+  }
 
 
-    		gunControl = new THREE.GunControls(handPivot);
-    		gunControl.connect();
-    		gunReady = true;
-    	});
+};
+var fireBullet = function(app) {
+
+                    var x = app.camera.position.x;
+                    var y = app.camera.position.y;
+                    var z = app.camera.position.z;
+                    //var ballBody = new CANNON.Body({ mass: 1 });
+                    //ballBody.addShape(ballShape);
+                    var ballMesh = new THREE.Mesh( ballGeometry, material );
+                    physics.meshes.add(ballMesh);
+                    scene.add(ballMesh);
+                    app.bullets.push(ballMesh);
+                    ballMesh.castShadow = true;
+                    ballMesh.receiveShadow = true;
+                    //balls.push(ballBody);
+                    //ballMeshes.push(ballMesh);
+                    getShootDir(shootDirection);
+                    ballBody.velocity.set(  shootDirection.x * shootVelo,
+                                            shootDirection.y * shootVelo,
+                                            shootDirection.z * shootVelo);
+
+                    // Move the ball outside the player sphere
+                    x += shootDirection.x * (sphereShape.radius*1.02 + ballShape.radius);
+                    y += shootDirection.y * (sphereShape.radius*1.02 + ballShape.radius);
+                    z += shootDirection.z * (sphereShape.radius*1.02 + ballShape.radius);
+                    //ballBody.position.set(x,y,z);
+                    ballMesh.position.set(x,y,z);
+
+}
+*/
+var makeTarget = function(app) {
+
+    var material = new THREE.MeshLambertMaterial({
+      //map: THREE.ImageUtils.loadTexture('path_to_texture'),  // specify and load the texture
+      colorAmbient: [0.3, 0.3, 0.3],
+      colorDiffuse: [0.3, 0.3, 0.3],
+      colorSpecular: [0.3, 0.3, 0.3],
+      shading: THREE.FlatShading
+    });
+    // create a mesh with models geometry and material
+    var target = new THREE.Mesh(
+      app.targetGeometry,
+      material
+    );
+    target.rotation.x = +Math.PI / 2;
+    target.rotation.y = -Math.PI;
+    target.rotation.z = -Math.PI / 2;
+    target.position.z = -5;
+
+    target.scale.x = 5; // SCALE
+    target.scale.y = 5; // SCALE
+    target.scale.z = 5; // SCALE
+
+    return target;
+};
+var makeGun = function(app, id) {
+  var color = [Math.random() * 0.3, Math.random() * 0.3, Math.random() * 0.3];
+  var colorLight = new THREE.Color(
+    0.6 + color[0],
+    0.6 + color[1],
+    0.6 + color[2]
+  );
+  var colorMedium = new THREE.Color(
+      0.4 + color[0],
+      0.4 + color[1],
+      0.4 + color[2]
+    );
+  var colorDark = new THREE.Color(
+      0.2 + color[0],
+      0.2 + color[1],
+      0.2 + color[2]
+    );
+  var material = new THREE.MeshLambertMaterial({
+    //map: THREE.ImageUtils.loadTexture('path_to_texture'),  // specify and load the texture
+    colorAmbient: colorLight.getHex(),
+    colorDiffuse: colorMedium.getHex(),
+    colorSpecular: colorLight.getHex(),
+    shading: THREE.FlatShading
+  });
+  // create a mesh with models geometry and material
+  var gunAssembly = new THREE.Mesh(
+    app.gunGeometry,
+    material
+  );
+  gunAssembly.castShadow = true;
+  gunAssembly.receiveShadow = true;
+  gunAssembly.rotation.x = +Math.PI / 2;
+  gunAssembly.rotation.y = -Math.PI;
+  gunAssembly.rotation.z = -Math.PI / 2;
+  gunAssembly.position.z = -5;
+  gunAssembly.position.y = app.config.pivotLength;
+  gunAssembly.scale.x = 5; // SCALE
+  gunAssembly.scale.y = 5; // SCALE
+  gunAssembly.scale.z = 5; // SCALE
+
+  var handPivot = new THREE.Object3D();
+
+  handPivot.position.z = -200 + (Math.random() * 400);
+  handPivot.position.y = -200 + (Math.random() * 400);
+  //handPivot.position.x = -100 + (Math.random() * 200);
+
+  handPivot.add(gunAssembly);
+
+  var origin = new THREE.Vector3(0, 0, 0);
+
+  var dir = new THREE.Vector3(0, 1, 0);
+  var arrow1 = new THREE.ArrowHelper(dir, origin, 600, colorDark.getHex());
+  handPivot.add(arrow1);
+
+  dir = new THREE.Vector3(1, 0, 0);
+  var arrow2 = new THREE.ArrowHelper(dir, origin, 30, colorMedium.getHex());
+  handPivot.add(arrow2);
+
+  dir = new THREE.Vector3(0, 0, 1);
+  var arrow3 = new THREE.ArrowHelper(dir, origin, 20, colorLight.getHex());
+  handPivot.add(arrow3);
+
+  var gunControl = new THREE.GunControls(handPivot);
+  gunControl.connect();
+
+  return {
+    gunAssembly: gunAssembly,
+    arrows: {
+      arrow1: arrow1,
+      arrow2: arrow2,
+      arrow3: arrow3
+    },
+    handPivot: handPivot,
+    gunControl: gunControl
+  }
+
+};
 
 
-    	renderer = new THREE.WebGLRenderer();
-    	renderer.setClearColor(scene.fog.color);
-    	renderer.setPixelRatio(window.devicePixelRatio);
-    	renderer.setSize(window.innerWidth, window.innerHeight);
-    	document.body.appendChild(renderer.domElement);
 
 
-    	window.addEventListener('resize', onWindowResize, false);
+var app = {
+  config: {
+    pivotLength: 0, // 100
+    pixelRatio: window.devicePixelRatio
+  },
 
-    	animate();
+  camera: {},
+  scene: {},
+  renderer: {},
+  controls: {},
+  ws: {},
 
+  gunGeometry: {},
+  bulletGeometry: {},
+  targetGeometry: {},
 
+  guns: {},
+  bullets: [],
+  targets: [],
 
-    	ws = new WebSocket("ws://192.168.0.31:8088/");
-
-    	console.log("we are a display");
-
-    	ws.onmessage = function(event) {
-    		var msg = JSON.parse(event.data);
-    		//console.log("msg:", msg);
-    		if (msg.type === "hello") {
-    			console.log("server said hello, replying..");
-    			ws.send(JSON.stringify({
-    				type: "display"
-    			}));
-    		} else if (msg.type === "sensor") {
-    			if (gunReady)
-    				gunControl.write(msg.sensor);
-    		}
-    	}
-
-    }
+  projector: new THREE.Projector()
+};
 
 
-    function onWindowResize() {
 
-    	camera.aspect = window.innerWidth / window.innerHeight;
-    	camera.updateProjectionMatrix();
 
-    	renderer.setSize(window.innerWidth, window.innerHeight);
+var physics = {
+  config: {
+    dt: 1/60,
+    N: 100
+  }
+};
+physics.meshes = [];
+physics.sendTime = 0; // Time when we sent last message
 
-    }
+// Data arrays. Contains all our kinematic data we need for rendering.
+physics.positions = new Float32Array(physics.config.N*3);
+physics.quaternions = new Float32Array(physics.config.N*4);
+physics.workerBlob = new Blob([document.querySelector('#physics').textContent],{type:'text/javascript'});
 
-    function animate() {
+  // Create worker
+physics.worker = new Worker(window.URL.createObjectURL(physics.workerBlob));
+physics.worker.postMessage = physics.worker.webkitPostMessage || physics.worker.postMessage;
+physics.sendDataToWorker = function(){
+  physics.sendTime = Date.now();
+  physics.worker.postMessage({
+    N : physics.config.N,
+    dt : physics.config.dt,
+    cannonUrl : document.location.href.replace(/\/[^/]*$/,"/") + "cannon.js",
+    positions : physics.positions,
+    quaternions : physics.quaternions
+  },[
+    physics.positions.buffer,
+    physics.quaternions.buffer
+    ]
+  );
+};
 
-    	requestAnimationFrame(animate);
+physics.worker.onmessage = function(e) {
 
-    	if (gunReady) gunControl.update();
+  // Get fresh data from the worker
+  physics.positions = e.data.positions;
+  physics.quaternions = e.data.quaternions;
 
-    	renderer.render(scene, camera);
+  // Update rendering meshes
+  for(var i=0; i !== physics.meshes.length; i++){
+    physics.meshes[i].position.set(
+      physics.positions[3*i+0],  physics.positions[3*i+1], physics.positions[3*i+2]
+    );
+    physics.meshes[i].quaternion.set(
+      physics.quaternions[4*i+0], physics.quaternions[4*i+1],
+      physics.quaternions[4*i+2], physics.quaternions[4*i+3]);
+  }
 
-    }
+  // If the worker was faster than the time step (dt seconds), we want to delay the next timestep
+  var delay = physics.dt * 1000 - (Date.now() - physics.sendTime);
+  if(delay < 0){
+    delay = 0;
+  }
+  setTimeout(physics.sendDataToWorker, delay);
+};
 
-    init();
+
+
+
+function onWindowResize() {
+  app.camera.aspect = window.innerWidth / window.innerHeight;
+  app.camera.updateProjectionMatrix();
+  app.renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+
+  requestAnimationFrame(animate);
+
+  var ids = Object.keys(app.guns);
+  for (var i = 0; i < ids.length; i++)
+    app.guns[ids[i]].gunControl.update();
+
+  app.renderer.render(app.scene, app.camera);
+}
+
+function init() {
+
+    app.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 50000);
+
+    app.camera.position.set(0, 15, 60);
+    app.camera.up = new THREE.Vector3(0, 1, 0);
+    app.camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+    app.scene = new THREE.Scene();
+    app.scene.fog = new THREE.FogExp2(0xcccccc, 0.001);
+
+    app.controls = new THREE.OrbitControls(app.camera);
+    app.controls.damping = 0.2;
+    //controls.addEventListener( 'change', render );
+
+
+    var light = new THREE.DirectionalLight(0xffffff);
+    light.position.set(1, 1, 1);
+    app.scene.add(light);
+
+    light = new THREE.DirectionalLight(0x002288);
+    light.position.set(-1, -1, -1);
+    app.scene.add(light);
+
+    light = new THREE.AmbientLight(0x222222);
+    app.scene.add(light);
+
+    var planeGeometry = new THREE.PlaneGeometry(160, 90, 32);
+    var planeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xe3e9f1,
+      side: THREE.DoubleSide
+    });
+    var plane = new THREE.Mesh(planeGeometry, planeMaterial);
+    plane.position.z = -50;
+    app.scene.add(plane);
+
+    app.renderer = new THREE.WebGLRenderer();
+    app.renderer.setClearColor(app.scene.fog.color);
+    app.renderer.setPixelRatio(app.config.pixelRatio);
+    app.renderer.setSize(window.innerWidth, window.innerHeight);
+    //app.renderer.gammaInput = true;
+    //app.renderer.gammaOutput = true;
+    //app.renderer.shadowMapEnabled = true;
+    document.body.appendChild(app.renderer.domElement);
+
+
+    window.addEventListener('resize', onWindowResize, false);
+
+    animate();
+
+    var loader = new THREE.JSONLoader();
+    loader.load('models/gun.json', function(geometry) {
+      app.gunGeometry = geometry;
+      loader.load('models/bullet.json', function(geometry) {
+        app.bulletGeometry = geometry;
+        loader.load('models/duck.json', function(geometry) {
+          app.targetGeometry = geometry;
+          // create a new material
+
+          app.targetGeometry = new THREE.BoxGeometry( 1, 1, 1, 10, 10 );
+
+          var targetMaterial = new THREE.MeshPhongMaterial( { color: 0x888888 } );
+          for(var i=0; i<physics.config.N; i++){
+              var targetMesh = new THREE.Mesh( app.targetGeometry, targetMaterial );
+              targetMesh.castShadow = true;
+              physics.meshes.push(targetMesh);
+              app.scene.add( targetMesh );
+          }
+
+          //physics.meshes.push(gun.gunAssembly);
+
+          // Start the worker!
+          physics.sendDataToWorker();
+
+          app.ws = new WebSocket(
+            //"ws://192.168.0.31:8088"
+            "ws://10.0.1.52:8088"
+          );
+
+          app.ws.onmessage = function(event) {
+            var msg = JSON.parse(event.data);
+            //console.log("msg:", msg);
+            if (msg.type === "hello") {
+              console.log("server said hello, replying..");
+              app.ws.send(JSON.stringify({
+                type: "display"
+              }));
+            } else if (msg.type === "sensor") {
+              var gun = app.guns[msg.id];
+              if (typeof gun === "undefined") {
+                console.log("creating new gun for remote "+msg.id);
+                app.guns[msg.id] = makeGun(app, msg.id);
+                gun = app.guns[msg.id];
+                app.scene.add(gun.handPivot);
+              }
+              gun.gunControl.write(msg.sensor);
+
+              // if button pressed, we fire the oldest mesh
+
+            }
+          };
+        });
+      });
+    });
+
+  }
+
+  init();
+
   </script>
 
 </body>

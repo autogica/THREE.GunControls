@@ -85,19 +85,28 @@ THREE.GunControls = function(object) {
 
        setObjectQuaternion(scope.object.quaternion, alpha, beta, gamma, orient);
 
+       /*
        scope.velocity.x = scope.velocity.x + filter2(event.acceleration.x * event.t, 0.006);
-       scope.velocity.y = scope.velocity.y + filter2(event.acceleration.y * event.t, 0.006),
-       scope.velocity.z = scope.velocity.z + filter2(event.acceleration.z * event.t, 0.006)
-
+       scope.velocity.y = scope.velocity.y + filter2(event.acceleration.y * event.t, 0.006);
+       scope.velocity.z = scope.velocity.z + filter2(event.acceleration.z * event.t, 0.006);
        scope.object.translateY(100 * filter2(scope.velocity.y * event.t, 0.006));
-       scope.object.translateX(100 * filter2(scope.velocity.x * event.t, 0.006)),
+       scope.object.translateX(100 * filter2(scope.velocity.x * event.t, 0.006));
        scope.object.translateZ(100 * filter2(scope.velocity.z * event.t, 0.006));
+       */
+
+       scope.velocity.x = scope.velocity.x + event.acceleration.x * event.t;
+       scope.velocity.y = scope.velocity.y + event.acceleration.y * event.t;
+       scope.velocity.z = scope.velocity.z + event.acceleration.z * event.t;
+       scope.object.translateY(100 * scope.velocity.y * event.t);
+       scope.object.translateX(100 * scope.velocity.x * event.t);
+       scope.object.translateZ(100 * scope.velocity.z * event.t);
 
        scope.object.updateMatrix();
     }
     scope.events = [];
 
-    // drag
+    // no need to drag if we receive deceleration events
+    // (problem is, maybe we will never receive these events..)
     scope.velocity.x *= 0.5;
     scope.velocity.y *= 0.5;
     scope.velocity.z *= 0.5;

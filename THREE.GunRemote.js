@@ -115,6 +115,7 @@ THREE.GunRemote = function(object) {
     var beta =  scope.rotation.beta;
     var gamma =  scope.rotation.gamma;
 
+    /*
     if (isMobile.Android) {
       gamma *= 2;
       beta *= 2;
@@ -124,6 +125,7 @@ THREE.GunRemote = function(object) {
       // TODO: apply a rotation to make it even with the iPhone
 
     }
+    */
     scope.onchange({
       t: scope.t,
       rotation: {

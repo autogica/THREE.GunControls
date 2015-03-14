@@ -121,7 +121,8 @@
   <script src="three.min.js"></script>
   <script src="sylvester.min.js"></script>
   <script src="kalman.js"></script>
-  <script src="THREE.GunRemote.js?v=12"></script>
+  <script src="gyronorm.complete.min.js"></script>
+  <script src="THREE.GunRemote.js?v=13"></script>
   <script>
     var app = {
       config: {
@@ -180,7 +181,10 @@
 
     function init() {
 
-      app.ws = new WebSocket("ws://192.168.0.31:8088");
+      app.ws = new WebSocket(
+        //"ws://192.168.0.31:8088"
+        "ws://10.0.1.52:8088"
+      );
       app.remote = new THREE.GunRemote();
       app.remote.connect();
 

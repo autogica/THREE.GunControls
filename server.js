@@ -3,9 +3,13 @@ var WebSocketServer = require('ws').Server
 
 var displays = [];
 var sensors = [];
+var idCounter = 0;
 
 wss.on('connection', function connection(ws) {
   //console.log('a client connected!');
+
+  ws.id = idCounter;
+  idCounter++;
 
   ws.on('message', function incoming(msg) {
     //console.log("msg: ", msg);
@@ -24,13 +28,13 @@ wss.on('connection', function connection(ws) {
       }
     }
 
-    if (msg.type === "sensor") {
+    if (ws.type === "sensor" && msg.type === "sensor") {
       wss.clients.forEach(function each(client) {
         if (client.type === "display"){
-          
           client.send(JSON.stringify({
             type: 'sensor',
-            sensor: msg.sensor
+            sensor: msg.sensor,
+            id: ws.id
           }));
         }
       });
@@ -38,5 +42,5 @@ wss.on('connection', function connection(ws) {
   });
 
   // say hello to our little friend
-  ws.send(JSON.stringify({type: "hello"}));
+  ws.send(JSON.stringify({type: "hello", id: ws.id}));
 });
